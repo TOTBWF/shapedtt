@@ -1,0 +1,4 @@
+(library
+ (name Core)
+ (libraries bwd)
+ (public_name shapedtt.core))
