@@ -103,6 +103,8 @@ struct
        V.Point (false :: pt)
     | V.Shape omegas ->
        V.Shape (Bwd.map (fun (lbl, omega) -> (lbl, do_zero omega)) omegas)
+    | V.Neu (neu, V.TpShape d) ->
+       V.Neu ({ neu with spine = Zero :: neu.spine }, V.TpShape (V.DimSuc d))
     | _ ->
        failwith "bad do_zero"
 
@@ -112,6 +114,10 @@ struct
        V.Point (true :: pt)
     | V.Shape omegas ->
        V.Shape (Bwd.map (fun (lbl, omega) -> (lbl, do_zero omega)) omegas)
+    | V.Neu (neu, V.TpShape d) ->
+       V.Neu ({ neu with spine = One :: neu.spine }, V.TpShape (V.DimSuc d))
+    | _ ->
+       failwith "bad do_zero"
     | _ ->
        failwith "bad do_zero"
 
