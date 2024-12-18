@@ -51,9 +51,12 @@ module rec Syntax : sig
     | One of tm
     (** Apply 1 to a point/shape *)
 
+    | DimRec of { mot : tp; zero : tm; suc : tm; scrut : tm }
+    (** Dimension elimination. Note that the motive must be a virtual type. *)
+
 
   (** The syntax of types. *)
-  type tp =
+  and tp =
     | TpVar of Idx.t
     (** Type variables.
         These are only used during splicing, and are never bound by terms.
@@ -150,4 +153,6 @@ and Value : sig
 
     | One
     (** Apply 1 to a shape *)
+
+    | DimRec of { mot : Syntax.tp clo; zero : tm; suc : tm }
 end = Value

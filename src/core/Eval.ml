@@ -43,6 +43,8 @@ struct
         do_zero (eval env tm)
      | S.One tm ->
         do_one (eval env tm)
+     | S.DimRec { mot; zero; suc; scrut } ->
+        do_dim_rec env mot (eval env zero) (eval env suc) (eval env scrut)
 
   and eval_tp (env : V.env) (tp : S.tp) : V.tp =
     match tp with
@@ -77,6 +79,9 @@ struct
        V.Neu ({ neu with spine = V.App (varg, a) :: neu.spine }, inst_tp_clo b varg)
     |  _ ->
         failwith "bad do_app"
+
+  and do_apps (vfn : V.tm) (vargs : V.tm Lazy.t list) : V.tm =
+    List.fold_left do_app vfn vargs
 
   and do_fst (v : V.tm) : V.tm =
     match v with
@@ -118,6 +123,16 @@ struct
        V.Neu ({ neu with spine = One :: neu.spine }, V.TpShape (V.DimSuc d))
     | _ ->
        failwith "bad do_zero"
+
+  and do_dim_rec (env : V.env) (mot : S.tp) (zero : V.tm) (suc : V.tm) (scrut : V.tm) =
+    match scrut with
+    | V.DimZero ->
+       zero
+    | V.DimSuc d ->
+       do_apps suc [Lazy.from_val d; Lazy.from_fun @@ fun () -> do_dim_rec env mot zero suc d]
+    | V.Neu (neu, V.TpDim) ->
+       let tp = eval_tp (V.Env.extend_tm env (Lazy.from_val scrut)) mot in
+       V.Neu ({ neu with spine = V.DimRec { mot = { env; body = mot }; zero; suc } :: neu.spine }, tp)
     | _ ->
        failwith "bad do_zero"
 
