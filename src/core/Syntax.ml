@@ -19,8 +19,8 @@ let rec tm_sexpr (tm : S.tm) : SExpr.t =
     SExpr.atom "pt"
   | Compound tms ->
     SExpr.fn "compound" (List.map tm_sexpr tms)
-  | MetaAbs tm ->
-    SExpr.fn "meta-abs" [tm_sexpr tm]
+  | MetaAbs (n, tm) ->
+    SExpr.fn "meta-abs" [SExpr.int n; tm_sexpr tm]
   | Inst (tm, tms) ->
     SExpr.fn "inst" (tm_sexpr tm :: List.map tm_sexpr tms)
   | Digit (d, tm) ->
