@@ -20,4 +20,4 @@ let build (tb : 'a TB.m) : 'a m =
 
 let run (env : V.env) (a : 'a m) : 'a * V.env =
   let (tb , env) = a env in
-  (TB.run ~tplen:env.tplen ~tmlen:env.tmlen tb, env)
+  TB.run ~tplen:env.tplen ~tmlen:env.tmlen tb, env
