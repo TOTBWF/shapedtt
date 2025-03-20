@@ -37,6 +37,12 @@ type ('tp, 'tm, 'r) tele =
   | Nil of 'r m
   | Cons of 'tp m * ('tm m -> ('tp, 'tm, 'r) tele)
 
+let nil (r : 'r m) : ('tp, 'tm, 'r) tele =
+  Nil r
+
+let cons (tp : 'tp m) (k : 'tm m -> ('tp, 'tm, 'r) tele) : ('tp, 'tm, 'r) tele =
+  Cons (tp, k)
+
 let rec telescope (tele : ('tp, S.tm, 'r) tele) : ('tp list * 'r) m =
   match tele with
   | Nil r ->
@@ -55,6 +61,11 @@ let dim_zero : S.tm m =
 let dim_succ (dm : S.tm m) : S.tm m =
   let+ d = dm in
   S.DimSucc d
+
+let rec dim_lit (n : int) : S.tm m =
+  if n <= 0 then
+    dim_zero
+  else dim_succ (dim_lit (n - 1))
 
 let tuple (tms : S.tm m list) : S.tm m =
   let+ tms = many tms in
@@ -84,9 +95,32 @@ let digit (d : bool) (tm : S.tm m) : S.tm m =
   let+ tm = tm
   in S.Digit (d, tm)
 
-let dim_rec (mot : S.tp m) (zero : S.tm m) (succ : S.tm m) (scrut : S.tm m) =
-  let+ mot = mot
+let dim_rec (mot : S.tm m -> S.tp m) (zero : S.tm m) (succ : S.tm m) (scrut : S.tm m) =
+  let+ mot = with_var mot
   and+ zero = zero
   and+ succ = succ
   and+ scrut = scrut
   in S.DimRec { mot; zero; succ; scrut }
+
+let dim : S.tp m =
+  pure S.Dim
+
+let record (tele : (S.tp, S.tm, unit) tele) : S.tp m =
+  let+ (tps, _) = telescope tele
+  in S.Record tps
+
+let tp_meta_abs (tele : (S.tp, S.tm, S.tp) tele) : S.tp m =
+  let+ (tele, tp) = telescope tele
+  in S.TpMetaAbs (tele, tp)
+
+let shape_univ (tm : S.tm m) : S.tp m =
+  let+ tm = tm
+  in S.ShapeUniv tm
+
+let el_shape (tm : S.tm m) : S.tp m =
+  let+ tm = tm
+  in S.ElShape tm
+
+let point_univ (tm : S.tm m) : S.tp m =
+  let+ tm = tm
+  in S.PointUniv tm
