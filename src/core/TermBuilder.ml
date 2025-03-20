@@ -43,15 +43,15 @@ let nil (r : 'r m) : ('tp, 'tm, 'r) tele =
 let cons (tp : 'tp m) (k : 'tm m -> ('tp, 'tm, 'r) tele) : ('tp, 'tm, 'r) tele =
   Cons (tp, k)
 
-let rec telescope (tele : ('tp, S.tm, 'r) tele) : ('tp list * 'r) m =
+let rec telescope (tele : ('tp, S.tm, 'r) tele) : ('tp list * int * 'r) m =
   match tele with
   | Nil r ->
     let+ r = r
-    in [], r
+    in [], 0, r
   | Cons (x, k) ->
     let+ x = x
-    and+ xs, r = with_var (fun x -> telescope (k x))
-    in x :: xs, r
+    and+ xs, n, r = with_var (fun x -> telescope (k x))
+    in x :: xs, n + 1, r
 
 (** {0} Higher-Order Abstract Syntax interface for environment-relative terms. *)
 
@@ -79,12 +79,12 @@ let pt : S.tm m =
   pure S.Pt
 
 let compound (tele : (S.tm, S.tm, unit) tele) : S.tm m =
-  let+ tms, _ = telescope tele in
+  let+ tms, _, _ = telescope tele in
   S.Compound tms
 
 let meta_abs (tele : (unit, S.tm, S.tm) tele) : S.tm m =
-  let+ (_, tm) = telescope tele
-  in S.MetaAbs tm
+  let+ (_, n, tm) = telescope tele
+  in S.MetaAbs (n, tm)
 
 let inst (tm : S.tm m) (tms : S.tm m list) : S.tm m =
   let+ tm = tm
@@ -106,11 +106,11 @@ let dim : S.tp m =
   pure S.Dim
 
 let record (tele : (S.tp, S.tm, unit) tele) : S.tp m =
-  let+ (tps, _) = telescope tele
+  let+ (tps, _, _) = telescope tele
   in S.Record tps
 
 let tp_meta_abs (tele : (S.tp, S.tm, S.tp) tele) : S.tp m =
-  let+ (tele, tp) = telescope tele
+  let+ (tele, _, tp) = telescope tele
   in S.TpMetaAbs (tele, tp)
 
 let shape_univ (tm : S.tm m) : S.tp m =
