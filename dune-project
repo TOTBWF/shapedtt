@@ -1,4 +1,4 @@
-(lang dune 3.15)
+(lang dune 3.17)
 
 (name shapedtt)
 
@@ -11,13 +11,17 @@
 
 (maintainers "Reed Mullanix")
 
+; We need 'Bwd.append : 'a bwd -> 'a bwd -> 'a bwd', which
+; is not available in bwd-2.3.0.
+(pin
+ (url "git+https://github.com/TOTBWF/ocaml-bwd.git#append")
+ (package (name bwd)))
+
 (package
  (name shapedtt)
  (synopsis "A type theory with shapes")
  (depends
-   ocaml
+  (ocaml (>= 5.2))
+  (algaeff (>= 2.0.0))
    dune
-  (bwd (>= 2.3.0))
-  (algaeff (>= 2.0.0))))
-
-; See the complete stanza docs at https://dune.readthedocs.io/en/stable/dune-files.html#dune-project
+   bwd))
