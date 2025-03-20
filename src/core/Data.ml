@@ -46,13 +46,20 @@ module rec Syntax : sig
     | DimRec of { mot : tp; zero : tm; succ : tm; scrut : tm }
 
   and tp =
+    | TpVar of Idx.t
+    (** Type variables.
+
+        These only exist to be able to use our HOAS machinery for writing types,
+        and will always get evaluated away. As such, they do not have a corresponding neutral
+        form. *)
+
     | Dim
     (** The virtual type of dimensions. *)
 
     | Record of tp List.t
     (** Record types. *)
 
-    | MetaAbs of tp List.t * tp
+    | TpMetaAbs of tp List.t * tp
     (** Meta-abstraction of types *)
 
     | ShapeUniv of tm
@@ -120,7 +127,7 @@ module V = Value
 (* n : Dim ⊢ ○ n shapeⁿ *)
 let bdry : S.tm =
   S.DimRec
-    { mot = S.Record [S.ShapeUniv (S.Var 0); S.MetaAbs ([S.ElShape (S.Var 0)], S.PointUniv (S.Var 1))];
+    { mot = S.Record [S.ShapeUniv (S.Var 0); S.TpMetaAbs ([S.ElShape (S.Var 0)], S.PointUniv (S.Var 1))];
       zero = S.Tuple [S.Compound []; S.MetaAbs S.Pt];
       succ =
         (* n : Dim, sp : Σ (○a : Shape n) (El ○a ⇒ Point n) ⊢ Σ (○a : Shape (suc n)) (El ○a ⇒ Point (suc n)) *)
