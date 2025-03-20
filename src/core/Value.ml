@@ -5,6 +5,19 @@ include V
 
 module Lvl = Data.Lvl
 
+let var (lvl : Lvl.t) : V.tm =
+  Neu { hd = lvl; spine = [] }
+
+module Tele =
+struct
+  type ('s, 'v) t = ('s, 'v) V.tele
+
+  let length (tele : ('s, 'v) tele) : int =
+    match tele with
+    | Nil -> 0
+    | Cons (_, tele_clo) -> 1 + List.length tele_clo.body
+end
+
 module Env =
 struct
   type t = V.env
@@ -56,8 +69,8 @@ let rec tm_sexpr (v : V.tm) : SExpr.t =
     SExpr.atom "pt"
   | Compound vs ->
     SExpr.fn "compound" (tm_tele_sexpr vs)
-  | MetaAbs clo ->
-    SExpr.fn "meta-abs" [clo_sexpr S.tm_sexpr clo]
+  | MetaAbs (n, clo) ->
+    SExpr.fn "meta-abs" [SExpr.int n; clo_sexpr S.tm_sexpr clo]
 
 and tp_sexpr (tp : V.tp) : SExpr.t = SExpr.atom "todo"
 
