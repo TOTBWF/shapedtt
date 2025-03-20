@@ -21,8 +21,8 @@ let rec eval_tm (env : V.env) (tm : S.tm) : V.tm =
     V.Pt
   | S.Compound tms ->
     V.Compound (eval_tm_tele env tms)
-  | S.MetaAbs tm ->
-    V.MetaAbs {body = tm; env}
+  | S.MetaAbs (n, tm) ->
+    V.MetaAbs (n, {body = tm; env})
   | S.Inst (tm, tms) ->
     do_inst (eval_tm env tm) (List.map (eval_tm_lazy env) tms)
   | S.Digit (d, tm) ->
@@ -40,7 +40,7 @@ and eval_tp (env : V.env) (tp : S.tp) : V.tp =
   | S.Record tele ->
     V.Record (eval_tp_tele env tele)
   | S.TpMetaAbs (tele, tp) ->
-    V.MetaAbs (eval_tp_tele env tele, { body = tp; env })
+    V.TpMetaAbs (eval_tp_tele env tele, { body = tp; env })
   | S.ShapeUniv dim ->
     V.ShapeUniv (eval_tm env dim)
   | S.ElShape tm ->
@@ -75,7 +75,7 @@ and do_proj (v : V.tm) (ix : Idx.t) : V.tm =
 (** Instantiate a term-level meta-abstraction. *)
 and do_inst (v : V.tm) (vs : V.tm Lazy.t List.t) : V.tm =
   match v with
-  | V.MetaAbs clo -> eval_tm (V.Env.extend_tms clo.env vs) clo.body
+  | V.MetaAbs (_, clo) -> eval_tm (V.Env.extend_tms clo.env vs) clo.body
   | V.Neu neu -> V.Neu (V.Neu.push neu (V.Inst vs))
   | _ -> failwith "bad do_inst"
 
@@ -84,7 +84,7 @@ and do_digit (d : bool) (v : V.tm) : V.tm =
   match v with
   | V.Compound vs -> V.Compound (do_tele_digit d vs)
   | V.Neu neu -> V.Neu (V.Neu.push neu (Digit d))
-  | _ -> failwith "bad do_digit"
+  | _ -> failwith @@ Format.asprintf "bad do_digit: %a" SExpr.dump (V.tm_sexpr v)
 
 (** Apply a digit to a telescope of shapes. *)
 and do_tele_digit (d : bool) (tele : (S.tm, V.tm) V.tele) : (S.tm, V.tm) V.tele =
