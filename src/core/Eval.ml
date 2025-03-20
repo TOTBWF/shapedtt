@@ -21,10 +21,10 @@ let rec eval_tm (env : V.env) (tm : S.tm) : V.tm =
     V.Pt
   | S.Compound tms ->
     V.Compound (eval_tm_tele env tms)
-  | S.MetaAbs (n, tm) ->
-    V.MetaAbs (n, {body = tm; env})
-  | S.Inst (tm, tms) ->
-    do_inst (eval_tm env tm) (List.map (eval_tm_lazy env) tms)
+  | S.MetaAbs tm ->
+    V.MetaAbs {body = tm; env}
+  | S.Inst (tm, arg) ->
+    do_inst (eval_tm env tm) (eval_tm_lazy env arg)
   | S.Digit (d, tm) ->
     do_digit d (eval_tm env tm)
   | S.DimRec elim ->
@@ -39,8 +39,8 @@ and eval_tp (env : V.env) (tp : S.tp) : V.tp =
     V.Dim
   | S.Record tele ->
     V.Record (eval_tp_tele env tele)
-  | S.TpMetaAbs (tele, tp) ->
-    V.TpMetaAbs (eval_tp_tele env tele, { body = tp; env })
+  | S.TpMetaAbs (base, fam) ->
+    V.TpMetaAbs (eval_tp env base, { body = fam; env })
   | S.ShapeUniv dim ->
     V.ShapeUniv (eval_tm env dim)
   | S.ElShape tm ->
@@ -73,11 +73,14 @@ and do_proj (v : V.tm) (ix : Idx.t) : V.tm =
   | _ -> failwith @@ Format.asprintf "bad do_proj: %a" SExpr.dump (V.tm_sexpr v)
 
 (** Instantiate a term-level meta-abstraction. *)
-and do_inst (v : V.tm) (vs : V.tm Lazy.t List.t) : V.tm =
+and do_inst (v : V.tm) (arg : V.tm Lazy.t) : V.tm =
   match v with
-  | V.MetaAbs (_, clo) -> eval_tm (V.Env.extend_tms clo.env vs) clo.body
-  | V.Neu neu -> V.Neu (V.Neu.push neu (V.Inst vs))
+  | V.MetaAbs clo -> eval_tm (V.Env.extend_tm clo.env arg) clo.body
+  | V.Neu neu -> V.Neu (V.Neu.push neu (V.Inst arg))
   | _ -> failwith "bad do_inst"
+
+and do_insts (v : V.tm) (args : V.tm Lazy.t List.t) : V.tm =
+  List.fold_left do_inst v args
 
 (** Apply a digit to a shape. *)
 and do_digit (d : bool) (v : V.tm) : V.tm =
@@ -96,7 +99,8 @@ and do_tele_digit (d : bool) (tele : (S.tm, V.tm) V.tele) : (S.tm, V.tm) V.tele 
 and do_dim_rec (mot : V.tp) (zero : V.tm) (succ : V.tm) (scrut : V.tm) : V.tm =
   match scrut with
   | V.DimZero -> zero
-  | V.DimSucc d -> do_inst succ [Lazy.from_val d; Lazy.from_fun @@ fun () -> do_dim_rec mot zero succ d]
+  | V.DimSucc d ->
+    do_insts succ [Lazy.from_val d; Lazy.from_fun @@ fun () -> do_dim_rec mot zero succ d]
   | V.Neu neu -> V.Neu (V.Neu.push neu (V.DimRec { mot; zero; succ }))
   | _ -> failwith "bad do_dim_rec"
 

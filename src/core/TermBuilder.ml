@@ -33,25 +33,23 @@ let run ~tplen ~tmlen (tb : 'a m) : 'a =
 let with_var (k : S.tm m -> 'a m) : 'a m =
   fun env -> k (var env.tmlen) { env with tmlen = env.tmlen + 1 }
 
-type ('tp, 'tm, 'r) tele =
-  | Nil of 'r m
-  | Cons of 'tp m * ('tm m -> ('tp, 'tm, 'r) tele)
+type ('tp, 'tm) tele =
+  | Nil
+  | Cons of 'tp m * ('tm m -> ('tp, 'tm) tele)
 
-let nil (r : 'r m) : ('tp, 'tm, 'r) tele =
-  Nil r
+let nil : ('tp, 'tm) tele =
+  Nil
 
-let cons (tp : 'tp m) (k : 'tm m -> ('tp, 'tm, 'r) tele) : ('tp, 'tm, 'r) tele =
+let cons (tp : 'tp m) (k : 'tm m -> ('tp, 'tm) tele) : ('tp, 'tm) tele =
   Cons (tp, k)
 
-let rec telescope (tele : ('tp, S.tm, 'r) tele) : ('tp list * int * 'r) m =
+let rec telescope (tele : ('tp, S.tm) tele) : 'tp list m =
   match tele with
-  | Nil r ->
-    let+ r = r
-    in [], 0, r
+  | Nil -> pure []
   | Cons (x, k) ->
     let+ x = x
-    and+ xs, n, r = with_var (fun x -> telescope (k x))
-    in x :: xs, n + 1, r
+    and+ xs = with_var (fun x -> telescope (k x))
+    in x :: xs
 
 (** {0} Higher-Order Abstract Syntax interface for environment-relative terms. *)
 
@@ -78,18 +76,18 @@ let proj (tm : S.tm m) (ix : Idx.t) : S.tm m =
 let pt : S.tm m =
   pure S.Pt
 
-let compound (tele : (S.tm, S.tm, unit) tele) : S.tm m =
-  let+ tms, _, _ = telescope tele in
+let compound (tele : (S.tm, S.tm) tele) : S.tm m =
+  let+ tms = telescope tele in
   S.Compound tms
 
-let meta_abs (tele : (unit, S.tm, S.tm) tele) : S.tm m =
-  let+ (_, n, tm) = telescope tele
-  in S.MetaAbs (n, tm)
+let meta_abs (body : S.tm m -> S.tm m) : S.tm m =
+  let+ body = with_var body
+  in S.MetaAbs body
 
-let inst (tm : S.tm m) (tms : S.tm m list) : S.tm m =
+let inst (tm : S.tm m) (arg : S.tm m) : S.tm m =
   let+ tm = tm
-  and+ tms = many tms
-  in S.Inst (tm, tms)
+  and+ arg = arg
+  in S.Inst (tm, arg)
 
 let digit (d : bool) (tm : S.tm m) : S.tm m =
   let+ tm = tm
@@ -105,13 +103,14 @@ let dim_rec (mot : S.tm m -> S.tp m) (zero : S.tm m) (succ : S.tm m) (scrut : S.
 let dim : S.tp m =
   pure S.Dim
 
-let record (tele : (S.tp, S.tm, unit) tele) : S.tp m =
-  let+ (tps, _, _) = telescope tele
+let record (tele : (S.tp, S.tm) tele) : S.tp m =
+  let+ tps = telescope tele
   in S.Record tps
 
-let tp_meta_abs (tele : (S.tp, S.tm, S.tp) tele) : S.tp m =
-  let+ (tele, _, tp) = telescope tele
-  in S.TpMetaAbs (tele, tp)
+let tp_meta_abs (base : S.tp m) (fam : S.tm m -> S.tp m) : S.tp m =
+  let+ base = base
+  and+ fam = with_var fam
+  in S.TpMetaAbs (base, fam)
 
 let shape_univ (tm : S.tm m) : S.tp m =
   let+ tm = tm

@@ -20,8 +20,8 @@ let rec quote_tm (lvl : Lvl.t) (v : V.tm) : S.tm =
     S.Pt
   | V.Compound tele ->
     S.Compound (quote_tm_tele lvl tele)
-  | V.MetaAbs (n, clo) ->
-    S.MetaAbs (n, quote_tm_clo lvl n clo)
+  | V.MetaAbs clo ->
+    S.MetaAbs (quote_tm_clo lvl 1 clo)
 
 
 and quote_tp (lvl : Lvl.t) (tp : V.tp) : S.tp =
@@ -30,8 +30,8 @@ and quote_tp (lvl : Lvl.t) (tp : V.tp) : S.tp =
     S.Dim
   | V.Record tele ->
     S.Record (quote_tp_tele lvl tele)
-  | V.TpMetaAbs (tele, tp) ->
-    S.TpMetaAbs (quote_tp_tele lvl tele, quote_tp_clo lvl (V.Tele.length tele) tp)
+  | V.TpMetaAbs (base, fam) ->
+    S.TpMetaAbs (quote_tp lvl base, quote_tp_clo lvl 1 fam)
   | V.ShapeUniv v ->
     S.ShapeUniv (quote_tm lvl v)
   | V.ElShape neu ->
@@ -48,8 +48,8 @@ and quote_frm (lvl : Lvl.t) (frm : V.frm) (tm : S.tm) : S.tm =
   match frm with
   | V.Proj ix ->
     S.Proj (tm, ix)
-  | V.Inst vs ->
-    S.Inst (tm, List.map (fun v -> quote_tm lvl (Lazy.force v)) vs)
+  | V.Inst arg ->
+    S.Inst (tm, quote_tm lvl (Lazy.force arg))
   | V.Digit d ->
     S.Digit (d, tm)
   | V.DimRec {mot; zero; succ} ->

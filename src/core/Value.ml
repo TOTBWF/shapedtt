@@ -69,8 +69,8 @@ let rec tm_sexpr (v : V.tm) : SExpr.t =
     SExpr.atom "pt"
   | Compound vs ->
     SExpr.fn "compound" (tm_tele_sexpr vs)
-  | MetaAbs (n, clo) ->
-    SExpr.fn "meta-abs" [SExpr.int n; clo_sexpr S.tm_sexpr clo]
+  | MetaAbs (clo) ->
+    SExpr.fn "meta-abs" [clo_sexpr S.tm_sexpr clo]
 
 and tp_sexpr (tp : V.tp) : SExpr.t = SExpr.atom "todo"
 
@@ -80,8 +80,8 @@ and frm_sexpr (frm : V.frm) : SExpr.t =
   match frm with
   | Proj i ->
     SExpr.fn "proj" [SExpr.int i]
-  | Inst vs ->
-    SExpr.fn "inst" (List.map (fun v -> tm_sexpr (Lazy.force v)) vs)
+  | Inst v ->
+    SExpr.fn "inst" [tm_sexpr (Lazy.force v)]
   | Digit d ->
     SExpr.fn "digit" [SExpr.bool d]
   | DimRec {mot; zero; succ} ->

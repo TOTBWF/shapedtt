@@ -35,10 +35,10 @@ module rec Syntax : sig
     | Compound of tm List.t
     (** Introduction form for shapes. *)
 
-    | MetaAbs of int * tm
+    | MetaAbs of tm
     (** Meta-abstraction of terms. *)
 
-    | Inst of tm * tm List.t
+    | Inst of tm * tm
     (** Instantiate a meta-abstracted term. *)
 
     | Digit of bool * tm
@@ -59,7 +59,7 @@ module rec Syntax : sig
     | Record of tp List.t
     (** Record types. *)
 
-    | TpMetaAbs of tp List.t * tp
+    | TpMetaAbs of tp * tp
     (** Meta-abstraction of types *)
 
     | ShapeUniv of tm
@@ -85,12 +85,12 @@ and Value : sig
     | Tuple of tm Lazy.t List.t
     | Pt
     | Compound of (Syntax.tm, tm) tele
-    | MetaAbs of int * Syntax.tm clo
+    | MetaAbs of Syntax.tm clo
 
   and tp =
     | Dim
     | Record of (Syntax.tp, tp) tele
-    | TpMetaAbs of (Syntax.tp, tp) tele * Syntax.tp clo
+    | TpMetaAbs of tp * Syntax.tp clo
     | ShapeUniv of tm
     | ElShape of neu
     | PointUniv of tm
@@ -102,7 +102,7 @@ and Value : sig
 
   and frm =
     | Proj of Idx.t
-    | Inst of tm Lazy.t List.t
+    | Inst of tm Lazy.t
     | Digit of bool
     | DimRec of { mot : tp; zero : tm; succ : tm }
 
