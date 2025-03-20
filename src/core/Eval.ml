@@ -21,7 +21,8 @@ let rec eval_tm (env : V.env) (tm : S.tm) : V.tm =
     V.Pt
   | S.Compound tms ->
     V.Compound (eval_tm_tele env tms)
-  | S.MetaAbs tm -> V.MetaAbs {body = tm; env}
+  | S.MetaAbs tm ->
+    V.MetaAbs {body = tm; env}
   | S.Inst (tm, tms) ->
     do_inst (eval_tm env tm) (List.map (eval_tm_lazy env) tms)
   | S.Digit (d, tm) ->
@@ -69,7 +70,7 @@ and do_proj (v : V.tm) (ix : Idx.t) : V.tm =
   match v with
   | V.Tuple vs -> Lazy.force (List.nth vs ix)
   | V.Neu neu -> V.Neu (V.Neu.push neu (V.Proj ix))
-  | _ -> failwith "bad do_proj"
+  | _ -> failwith @@ Format.asprintf "bad do_proj: %a" SExpr.dump (V.tm_sexpr v)
 
 (** Instantiate a term-level meta-abstraction. *)
 and do_inst (v : V.tm) (vs : V.tm Lazy.t List.t) : V.tm =
@@ -111,3 +112,13 @@ and do_tele_el_shape (tele : (S.tm, V.tm) V.tele) : (S.tp, V.tp) V.tele =
   match tele with
   | Nil -> Nil
   | Cons (v, clo) -> Cons (do_el_shape v, { clo with body = List.map (fun tm -> S.ElShape tm) clo.body })
+
+(** Construct a term out of a splice. *)
+and splice_tm (splice : S.tm Splice.m) : V.tm =
+  let tm, env = Splice.run V.Env.empty splice in
+  eval_tm env tm
+
+(** Construct a type out of a splice. *)
+and splice_tp (splice : S.tp Splice.m) : V.tp =
+  let tp, env = Splice.run V.Env.empty splice in
+  eval_tp env tp
