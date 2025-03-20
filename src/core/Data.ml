@@ -1,7 +1,5 @@
 (** The core datatypes of {v shapedtt v}. *)
 
-open Bwd
-
 (** {0} Variables *)
 
 (** De Bruijn indices. *)
@@ -18,141 +16,133 @@ end
 
 (** {0} Syntax *)
 module rec Syntax : sig
-  (** The syntax of terms. *)
+
   type tm =
     | Var of Idx.t
 
-    | Lam of tm
-    | App of tm * tm
-
-    | Pair of tm * tm
-    | Fst of tm
-    | Snd of tm
-
-    | CodeUniv
-    | CodePi of tm * tm
-    | CodeSigma of tm * tm
-
     | DimZero
-    (** Dimension zero. *)
 
-    | DimSuc of tm
-    (** Dimension successor. *)
+    | DimSucc of tm
 
-    | Eps
-    (** The point. *)
+    | Tuple of tm List.t
+    (** Introduction form for record types. *)
 
-    | Shape of (string * tm) Bwd.t
-    (** Compound shapes. *)
+    | Proj of tm * Idx.t
+    (** Elimination form for record types. *)
 
-    | Zero of tm
-    (** Apply 0 to a point/shape *)
+    | Pt
 
-    | One of tm
-    (** Apply 1 to a point/shape *)
+    | Compound of tm List.t
+    (** Introduction form for shapes. *)
 
-    | DimRec of { mot : tp; zero : tm; suc : tm; scrut : tm }
-    (** Dimension elimination. Note that the motive must be a virtual type. *)
+    | MetaAbs of tm
+    (** Meta-abstraction of terms. *)
 
+    | Inst of tm * tm List.t
+    (** Instantiate a meta-abstracted term. *)
 
-  (** The syntax of types. *)
+    | Digit of bool * tm
+
+    | DimRec of { mot : tp; zero : tm; succ : tm; scrut : tm }
+
   and tp =
-    | TpVar of Idx.t
-    (** Type variables.
-        These are only used during splicing, and are never bound by terms.
-        Therefore, we do not need to add corresponding neutral forms, as
-        they are always evaluated away. *)
-
-    | Univ
-    | El of tm
-    | Pi of tp * tp
-    | Sigma of tp * tp
-
-    | TpDim
+    | Dim
     (** The virtual type of dimensions. *)
 
-    | TpShape of tm
+    | Record of tp List.t
+    (** Record types. *)
+
+    | MetaAbs of tp List.t * tp
+    (** Meta-abstraction of types *)
+
+    | ShapeUniv of tm
     (** The virtual type of shapes. *)
 
-    | TpPoint of tm * tm
+    | ElShape of tm
+    (** Decodes a shape into a into a type by mapping compound shapes to record types. *)
+
+    | PointUniv of tm
     (** The virtual type of points. *)
+
+    | ElPoint of tm
+    (** Unclear what this does :) *)
+
 end = Syntax
 
 (** {0} Values *)
 and Value : sig
-  (** The syntax of values. *)
   type tm =
-    | Neu of neu * tp
-
-    | Lam of Syntax.tm clo
-
-    | Pair of tm Lazy.t * tm Lazy.t
-
-    | CodeUniv
-    | CodePi of tm * tm
-    | CodeSigma of tm * tm
-
+    | Neu of neu
     | DimZero
-    (** Dimension zero. *)
-
-    | DimSuc of tm
-    (** Dimension successor. *)
-
-    | Point of bool list
-    (** The point. *)
-
-    | Shape of (string * tm) Bwd.t
-    (** Compound shapes. *)
+    | DimSucc of tm
+    | Tuple of tm Lazy.t List.t
+    | Pt
+    | Compound of (Syntax.tm, tm) tele
+    | MetaAbs of Syntax.tm clo
 
   and tp =
-    | ElNeu of neu
-    | Univ
-    | Pi of tp * Syntax.tp clo
-    | Sigma of tp * Syntax.tp clo
+    | Dim
+    | Record of (Syntax.tp, tp) tele
+    | MetaAbs of (Syntax.tp, tp) tele * Syntax.tp clo
+    | ShapeUniv of tm
+    | ElShape of neu
+    | PointUniv of tm
+    | ElPoint of neu
 
-    | TpDim
-    (** The virtual type of dimensions. *)
+  and neu = { hd : hd; spine : frm List.t }
 
-    | TpShape of tm
-    (** The virtual type of shapes. *)
+  and hd = Lvl.t
 
-    | TpPoint of tm * tm
-    (** The virtual type of points. *)
+  and frm =
+    | Proj of Idx.t
+    | Inst of tm Lazy.t List.t
+    | Digit of bool
+    | DimRec of { mot : tp; zero : tm; succ : tm }
 
-  (** Environments.
+  and env =
+    { tms : tm Lazy.t List.t;
+      tmlen : int;
+      tps : tp Lazy.t List.t;
+      tplen : int
+    }
 
-      We make environments lazy to avoid performing
-      potentially useless normalization during evaluation.
+  and 'a clo = { body : 'a; env : env }
 
-      Invariant: All lazy values *must* be effect free.
-      Invariant: Bwd.length tms = tmlen.
-      Invariant: Bwd.length tps = tplen.
-  *)
-  and env = { tms : tm Lazy.t bwd; tmlen : int; tps : tp Lazy.t bwd; tplen : int }
+  and ('s, 'v) tele =
+    | Nil
+    | Cons of 'v * 's list clo
 
-  (** Closures. *)
-  and 'a clo = { env : env; body : 'a }
-
-  (** A {!type:neu} is a value that is blocked on the computation of a {!type:hd} (pronounced "head").
-      When the head becomes unblocked, the list of stuck computation frames {!type:frame} will resume computation.
-  *)
-  and neu = { hd : hd; spine : frame list }
-
-  (** A head is a variable {!constructor:Var}. *)
-  and hd =
-    | Var of Lvl.t
-
-  (** Neutral frames; these correspond to the elimination forms of the type theory. *)
-  and frame =
-    | App of tm Lazy.t * tp
-    | Fst
-    | Snd
-
-    | Zero
-    (** Apply 0 to a shape *)
-
-    | One
-    (** Apply 1 to a shape *)
-
-    | DimRec of { mot : Syntax.tp clo; zero : tm; suc : tm }
 end = Value
+
+module S = Syntax
+module V = Value
+
+(* n : Dim ⊢ ○ n shapeⁿ *)
+let bdry : S.tm =
+  S.DimRec
+    { mot = S.Record [S.ShapeUniv (S.Var 0); S.MetaAbs ([S.ElShape (S.Var 0)], S.PointUniv (S.Var 1))];
+      zero = S.Tuple [S.Compound []; S.MetaAbs S.Pt];
+      succ =
+        (* n : Dim, sp : Σ (○a : Shape n) (El ○a ⇒ Point n) ⊢ Σ (○a : Shape (suc n)) (El ○a ⇒ Point (suc n)) *)
+        S.Tuple [
+          S.Compound [
+            (* n : Dim, sp : Σ (○a : Shape n) (El ○a ⇒ Point n) ⊢ Shape (suc n) *)
+            S.Digit (false, S.Proj (S.Var 0, 0));
+            (* n : Dim, sp : Σ (○a : Shape n) (El ○a ⇒ Point n), ∂a : 𝟘 sp.0 ⊢ Shape (suc n) *)
+            S.Inst (S.Digit (false, S.Proj (S.Var 1, 1)), [S.Var 0]);
+            (* n : Dim, sp : Σ (○a : Shape n) (El ○a ⇒ Point n), ∂a : 𝟘 sp.0, a : 𝟘 (sp.1 ∂a) ⊢ Shape (suc n) *)
+            S.Inst (S.Digit (true, S.Proj (S.Var 2, 0)), [S.Var 1])
+          ];
+          (* n : Dim, sp : Σ (○a : Shape n) (El ○a ⇒ Point n) ⊢ El ○a ⇒ Point (suc n) *)
+          S.MetaAbs (
+            (* n : Dim, sp : Σ (○a : Shape n) (El ○a ⇒ Point n), s' : El ○a ⊢ Point (suc n) *)
+            S.Inst (
+              S.Digit (true, S.Proj (S.Var 1, 1)),
+              (* n : Dim, sp : Σ (○a : Shape n) (El ○a ⇒ Point n), s' : El ○a ⊢ t0 : 𝟘 sp.0 *)
+              (* n : Dim, sp : Σ (○a : Shape n) (El ○a ⇒ Point n), s' : El ○a ⊢ t1 : (𝟙 sp.0) @ s'.0 *)
+              (* n : Dim, sp : Σ (○a : Shape n) (El ○a ⇒ Point n), s' : El ○a ⊢ t2 : 𝟘 (sp.1 @ s'.0) *)
+              [S.Proj (S.Var 0, 0); S.Proj (S.Var 0, 2); S.Proj (S.Var 0, 1)])
+          )
+        ];
+      scrut = S.Var 0;
+    }
