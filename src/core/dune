@@ -1,4 +1,6 @@
 (library
  (name Core)
  (libraries bwd)
+ (flags
+  (:standard -w -32-37-38 -warn-error -a+31))
  (public_name shapedtt.core))

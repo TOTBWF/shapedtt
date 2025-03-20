@@ -1,2 +1,5 @@
 (test
- (name test_shapedtt))
+ (libraries shapedtt.core)
+ (flags
+  (:standard -w -32-37-38 -warn-error -a+31))
+ (name boundary))
