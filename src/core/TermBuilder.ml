@@ -21,32 +21,72 @@ let (let+) (a : 'a m) (f : 'a -> 'b) : 'b m =
 let (and+) (a : 'a m) (b : 'b m) : ('a * 'b) m =
   fun env -> (a env, b env)
 
+let many (xs : 'a m list) : 'a list m =
+  fun env -> List.map (fun x -> x env) xs
+
+let pure (x : 'a) : 'a m =
+  fun _ -> x
+
 let run ~tplen ~tmlen (tb : 'a m) : 'a =
   tb { tplen; tmlen }
 
 let with_var (k : S.tm m -> 'a m) : 'a m =
   fun env -> k (var env.tmlen) { env with tmlen = env.tmlen + 1 }
 
+type ('tp, 'tm, 'r) tele =
+  | Nil of 'r m
+  | Cons of 'tp m * ('tm m -> ('tp, 'tm, 'r) tele)
+
+let rec telescope (tele : ('tp, S.tm, 'r) tele) : ('tp list * 'r) m =
+  match tele with
+  | Nil r ->
+    let+ r = r
+    in [], r
+  | Cons (x, k) ->
+    let+ x = x
+    and+ xs, r = with_var (fun x -> telescope (k x))
+    in x :: xs, r
+
 (** {0} Higher-Order Abstract Syntax interface for environment-relative terms. *)
-let lam (body : S.tm m -> S.tm m) : S.tm m =
-  let+ body = with_var body
-  in S.Lam body
 
-let app (fn : S.tm m) (arg : S.tm m) : S.tm m =
-  let+ fn = fn
-  and+ arg = arg
-  in S.App (fn, arg)
+let dim_zero : S.tm m =
+  pure S.DimZero
 
-let el (a : S.tm m) : S.tp m =
-  let+ a = a
-  in S.El a
+let dim_succ (dm : S.tm m) : S.tm m =
+  let+ d = dm in
+  S.DimSucc d
 
-let pi (a : S.tp m) (b : S.tm m -> S.tp m) : S.tp m =
-  let+ a = a
-  and+ b = with_var b
-  in S.Pi (a, b)
+let tuple (tms : S.tm m list) : S.tm m =
+  let+ tms = many tms in
+  S.Tuple tms
 
-let sigma (a : S.tp m) (b : S.tm m -> S.tp m) : S.tp m =
-  let+ a = a
-  and+ b = with_var b
-  in S.Sigma (a, b)
+let proj (tm : S.tm m) (ix : Idx.t) : S.tm m =
+  let+ tm = tm in
+  S.Proj (tm, ix)
+
+let pt : S.tm m =
+  pure S.Pt
+
+let compound (tele : (S.tm, S.tm, unit) tele) : S.tm m =
+  let+ tms, _ = telescope tele in
+  S.Compound tms
+
+let meta_abs (tele : (unit, S.tm, S.tm) tele) : S.tm m =
+  let+ (_, tm) = telescope tele
+  in S.MetaAbs tm
+
+let inst (tm : S.tm m) (tms : S.tm m list) : S.tm m =
+  let+ tm = tm
+  and+ tms = many tms
+  in S.Inst (tm, tms)
+
+let digit (d : bool) (tm : S.tm m) : S.tm m =
+  let+ tm = tm
+  in S.Digit (d, tm)
+
+let dim_rec (mot : S.tp m) (zero : S.tm m) (succ : S.tm m) (scrut : S.tm m) =
+  let+ mot = mot
+  and+ zero = zero
+  and+ succ = succ
+  and+ scrut = scrut
+  in S.DimRec { mot; zero; succ; scrut }
