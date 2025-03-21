@@ -67,7 +67,7 @@ let rec debug_tm_sexpr (v : V.tm) : SExpr.t =
   | Tuple vs ->
     SExpr.fn "tuple" (List.map (fun v -> debug_tm_sexpr (Lazy.force v)) vs)
   | Compound clo ->
-    SExpr.fn "tuple" [debug_clo_sexpr (fun tms -> SExpr.list (List.map S.debug_tm_sexpr tms)) clo]
+    SExpr.fn "compound" [debug_clo_sexpr (fun tms -> SExpr.list (List.map S.debug_tm_sexpr tms)) clo]
 
 and debug_meta_tm_sexpr (mv : V.meta_tm) : SExpr.t =
   match mv with

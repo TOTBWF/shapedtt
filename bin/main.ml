@@ -6,40 +6,50 @@ module V = Value
 module TB = TermBuilder
 
 let bdry : V.tm =
-  Eval.splice_tm @@
+  NbE.splice_tm @@
   Splice.build @@
   let mot d =
     TB.record @@
-    TB.cons (TB.shape_univ d) @@ fun s ->
-    TB.cons (TB.tp_meta_abs (TB.el_shape s) @@ fun _ -> TB.point_univ d) @@ fun _ ->
-    TB.nil
+    TB.Tele.cons (TB.shape_univ d) @@ fun s ->
+    TB.Tele.cons (TB.pi (TB.el_shape s) @@ fun _ -> TB.point_univ d) @@ fun _ ->
+    TB.Tele.nil
   and zero =
-    TB.tuple [TB.compound TB.nil; TB.meta_abs @@ fun _ -> TB.pt]
+    TB.tuple [TB.compound TB.Tele.nil; TB.lam @@ fun _ -> TB.pt]
   and succ =
-    TB.meta_abs @@ fun _ ->
-    TB.meta_abs @@ fun sp ->
+    TB.lam @@ fun _ ->
+    TB.lam @@ fun sp ->
     let s = TB.proj sp 0
     and p = TB.proj sp 1
     in
     TB.tuple [
       TB.compound
-        (TB.cons (TB.digit false s) @@ fun da ->
-         TB.cons (TB.inst (TB.digit false p) da) @@ fun _ ->
-         TB.cons (TB.inst (TB.digit true s) da) @@ fun _ ->
-         TB.nil);
-      TB.meta_abs @@ fun ba ->
-      TB.inst (TB.digit true p) (TB.tuple [TB.proj ba 0; TB.proj ba 2; TB.proj ba 1])
+        (TB.Tele.cons (TB.app_zero s) @@ fun da ->
+         TB.Tele.cons (TB.app_zero (TB.app p da)) @@ fun _ ->
+         TB.Tele.cons (TB.inst (TB.app_one s) da) @@ fun _ ->
+         TB.Tele.nil);
+      TB.lam @@ fun ba ->
+      TB.inst (TB.app_one p) (TB.tuple [TB.proj ba 0; TB.proj ba 2; TB.proj ba 1])
     ]
   in
-  TB.meta_abs @@ fun d ->
+  TB.lam @@ fun d ->
   TB.dim_rec mot zero succ d
 
 let bdry_n (n : int) =
-  Eval.splice_tm @@
+  NbE.splice_tm @@
   Splice.tm bdry @@ fun bdry ->
   Splice.build @@
-  TB.inst bdry (TB.dim_lit n)
+  TB.proj (TB.app bdry (TB.dim_lit n)) 0
 
-let () = Format.printf "bdry :=@.  %a@." SExpr.dump (V.tm_sexpr bdry)
-let () = Format.printf "bdry_0 :=@.  %a@." SExpr.dump (V.tm_sexpr (bdry_n 0))
-let () = Format.printf "bdry_1 :=@.  %a@." SExpr.dump (S.tm_sexpr @@ Quote.quote_tm 0 (bdry_n 1))
+let filler_n (n : int) =
+  NbE.splice_tm @@
+  Splice.tm bdry @@ fun bdry ->
+  Splice.build @@
+  TB.proj (TB.app bdry (TB.dim_lit n)) 1
+
+
+let () = Format.printf "bdry :=@.  %a@." V.dump_tm bdry
+let () = Format.printf "bdry_0 :=@.  %a@." S.dump_tm (NbE.quote_tm 0 (bdry_n 0))
+let () = Format.printf "filler_0 :=@.  %a@." S.dump_tm (NbE.quote_tm 0 (filler_n 0))
+let () = Format.printf "bdry_1 :=@.  %a@." S.dump_tm (NbE.quote_tm 0 (bdry_n 1))
+let () = Format.printf "filler_1 :=@.  %a@." S.dump_tm (NbE.quote_tm 0 (filler_n 1))
+let () = Format.printf "bdry_2 :=@.  %a@." S.dump_tm (NbE.quote_tm 0 (bdry_n 2))

@@ -13,14 +13,15 @@ type ('tp, 'tm) tele =
   | Nil
   | Cons of 'tp m * ('tm m -> ('tp, 'tm) tele)
 
-let nil : ('tp, 'tm) tele =
-  Nil
-
-let cons (tp : 'tp m) (k : 'tm m -> ('tp, 'tm) tele) : ('tp, 'tm) tele =
-  Cons (tp, k)
 
 module Tele =
 struct
+  let nil : ('tp, 'tm) tele =
+    Nil
+
+  let cons (tp : 'tp m) (k : 'tm m -> ('tp, 'tm) tele) : ('tp, 'tm) tele =
+    Cons (tp, k)
+
   let rec map (f : 'tp0 m -> 'tp1 m) (tele : ('tp0, 'tm) tele) : ('tp1, 'tm) tele =
     match tele with
     | Nil ->
@@ -53,7 +54,6 @@ let run ~tplen ~tmlen (tb : 'a m) : 'a =
 let with_var (k : S.tm m -> 'a m) : 'a m =
   fun env -> k (var env.tmlen) { env with tmlen = env.tmlen + 1 }
 
-
 let rec telescope (tele : ('tp, S.tm) tele) : 'tp list m =
   match tele with
   | Nil -> pure []
@@ -75,6 +75,11 @@ let rec dim_lit (n : int) : S.tm m =
   if n <= 0 then
     dim_zero
   else dim_succ (dim_lit (n - 1))
+
+let pi (base : S.tp m) (fam : S.tm m -> S.tp m) : S.tp m =
+  let+ base = base
+  and+ fam = with_var fam
+  in S.Pi (base, fam)
 
 let lam (body : S.tm m -> S.tm m) : S.tm m =
   let+ body = with_var body
@@ -130,8 +135,8 @@ let rec inst_tele (tele : (S.meta_tm, S.tm) tele) (arg : S.tm m) : (S.tm, S.tm) 
   | Nil -> Nil
   | Cons (tm, k) -> Cons (inst tm arg, fun x -> inst_tele (k x) arg)
 
-let dim_rec (mot : S.tp m) (zero : S.tm m) (succ : S.tm m) (scrut : S.tm m) =
-  let+ mot = mot
+let dim_rec (mot : S.tm m -> S.tp m) (zero : S.tm m) (succ : S.tm m) (scrut : S.tm m) =
+  let+ mot = with_var mot
   and+ zero = zero
   and+ succ = succ
   and+ scrut = scrut
