@@ -145,6 +145,11 @@ and debug_env_sexpr (env : Env.t) : SExpr.t =
 let dump_tm (fmt : Format.formatter) (tm : V.tm) : unit =
   SExpr.pp_print_sexpr fmt (debug_tm_sexpr tm)
 
+(** Debug-print an environment. *)
+let dump_env (fmt : Format.formatter) (env : V.env) : unit =
+  let env_sexprs = List.rev_map (fun v -> debug_tm_sexpr (Lazy.force v)) env.tms in
+  Format.fprintf fmt "@[<v>%a@]" (Format.pp_print_list ~pp_sep:Format.pp_print_space SExpr.pp_print_sexpr) env_sexprs
+
 let dump_meta_tm (fmt : Format.formatter) (mtm : V.meta_tm) : unit =
   SExpr.pp_print_sexpr fmt (debug_meta_tm_sexpr mtm)
 

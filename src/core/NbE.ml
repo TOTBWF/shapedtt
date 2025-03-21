@@ -1,6 +1,6 @@
 (** {0} Normalization by evaluation. *)
 
-(** {0} Evaluation *)
+(** {1} Evaluation *)
 
 module S = Syntax
 module V = Value
@@ -11,6 +11,8 @@ module Idx = S.Idx
 module Lvl = V.Lvl
 
 let rec eval_tm (env : V.env) (tm : S.tm) : V.tm =
+  Debug.trace ~prefix:"eval.eval_tm" ~level:100
+    (fun v -> Format.dprintf "%a@.@[<hov>⊢ %a@ ⇓ %a@]" V.dump_env env S.dump_tm tm V.dump_tm v) @@
   match tm with
   | S.Var ix ->
     Lazy.force (V.Env.nth_tm env ix)
@@ -36,8 +38,12 @@ let rec eval_tm (env : V.env) (tm : S.tm) : V.tm =
     do_inst (eval_meta_tm env mtm) (eval_tm_lazy env arg)
   | S.DimRec {mot; zero; succ; scrut} ->
     do_dim_rec (eval_tp env mot) (eval_tm env zero) (eval_tm env succ) (eval_tm env scrut)
+  (* Debug.print ~prefix:"eval" ~level:100 "%a@.@[<hov>⊢ %a@ ⇓ %a@]@." V.dump_env env S.dump_tm tm V.dump_tm v; *)
+  (* v *)
 
 and eval_meta_tm (env : V.env) (mtm : S.meta_tm) : V.meta_tm =
+  Debug.trace ~prefix:"eval.eval_meta_tm" ~level:100
+    (fun v -> Format.dprintf "%a@.@[<hov>⊢ %a@ ⇓ %a@]" V.dump_env env S.dump_meta_tm mtm V.dump_meta_tm v) @@
   match mtm with
   | S.MetaAbs body ->
     V.MetaAbs { env; body }
@@ -49,6 +55,8 @@ and eval_meta_tm (env : V.env) (mtm : S.meta_tm) : V.meta_tm =
     do_meta_app_one (eval_meta_tm env mtm)
 
 and eval_tp (env : V.env) (tp : S.tp) : V.tp =
+  Debug.trace ~prefix:"eval.eval_tp" ~level:100
+    (fun v -> Format.dprintf "%a@.@[<hov>⊢ %a@ ⇓ %a@]" V.dump_env env S.dump_tp tp V.dump_tp v) @@
   match tp with
   | S.TpVar ix ->
     Lazy.force (V.Env.nth_tp env ix)
@@ -70,6 +78,8 @@ and eval_tp (env : V.env) (tp : S.tp) : V.tp =
     failwith "todo: implement evaluation for el-point"
 
 and eval_meta_tp (env : V.env) (mtp : S.meta_tp) : V.meta_tp =
+  Debug.trace ~prefix:"eval.eval_meta_tp" ~level:100
+    (fun v -> Format.dprintf "%a@.@[<hov>⊢ %a@ ⇓ %a@]" V.dump_env env S.dump_meta_tp mtp V.dump_meta_tp v) @@
   match mtp with
   | S.TpMetaAbs body ->
     V.TpMetaAbs {env; body}
@@ -206,11 +216,11 @@ and quote_tm (lvl : Lvl.t) (v : V.tm) : S.tm =
   | V.DimSucc v ->
     S.DimSucc (quote_tm lvl v)
   | V.Lam clo ->
-    S.Lam (quote_tm_clo clo)
+    S.Lam (quote_tm_clo lvl clo)
   | V.Tuple vs ->
     S.Tuple (List.map (fun v -> quote_tm lvl (Lazy.force v)) vs)
   | V.Compound tele ->
-    S.Compound (quote_tm_tele tele)
+    S.Compound (quote_tm_tele lvl tele)
 
 
 and quote_tp (lvl : Lvl.t) (tp : V.tp) : S.tp =
@@ -218,9 +228,9 @@ and quote_tp (lvl : Lvl.t) (tp : V.tp) : S.tp =
   | V.Dim ->
     S.Dim
   | V.Pi (base, clo) ->
-    S.Pi (quote_tp lvl base, quote_tp_clo clo)
+    S.Pi (quote_tp lvl base, quote_tp_clo lvl clo)
   | V.Record tele ->
-    S.Record (quote_tp_tele tele)
+    S.Record (quote_tp_tele lvl tele)
   | V.ShapeUniv v ->
     S.ShapeUniv (quote_tm lvl v)
   | V.ElShape neu ->
@@ -273,54 +283,32 @@ and quote_meta_frm (_lvl : Lvl.t) (mfrm : V.meta_frm) (tm : S.meta_tm) : S.meta_
   | V.MetaAppZero -> S.MetaAppZero tm
   | V.MetaAppOne -> S.MetaAppOne tm
 
-and quote_tm_clo (clo : S.tm V.clo) : S.tm =
-  let var = Lazy.from_val (V.var clo.env.tmlen) in
-  quote_tm clo.env.tmlen (eval_tm (V.Env.extend_tm clo.env var) clo.body)
+and quote_tm_clo (lvl : Lvl.t) (clo : S.tm V.clo) : S.tm =
+  let var = Lazy.from_val (V.var lvl) in
+  quote_tm (lvl + 1) (eval_tm (V.Env.extend_tm clo.env var) clo.body)
 
-and quote_tp_clo (clo : S.tp V.clo) : S.tp =
-  let var = Lazy.from_val (V.var clo.env.tmlen) in
-  quote_tp clo.env.tmlen (eval_tp (V.Env.extend_tm clo.env var) clo.body)
+and quote_tp_clo (lvl : Lvl.t) (clo : S.tp V.clo) : S.tp =
+  let var = Lazy.from_val (V.var lvl) in
+  quote_tp (lvl + 1) (eval_tp (V.Env.extend_tm clo.env var) clo.body)
 
-and quote_tm_tele (tele : S.tm List.t V.clo) : S.tm list =
-  let rec go (env : V.env) =
+and quote_tm_tele (lvl : Lvl.t) (tele : S.tm List.t V.clo) : S.tm list =
+  let rec go (lvl : Lvl.t) (env : V.env) =
     function
     | [] ->
       []
     | tm :: tms ->
-      let tm = quote_tm env.tmlen (eval_tm env tm)
-      and tms = go (V.Env.extend_tm env (Lazy.from_val (V.var env.tmlen))) tms
+      let tm = quote_tm lvl (eval_tm env tm)
+      and tms = go (lvl + 1) (V.Env.extend_tm env (Lazy.from_val (V.var env.tmlen))) tms
       in tm :: tms
-  in go tele.env tele.body
+  in go lvl tele.env tele.body
 
-and quote_tp_tele (tele : S.tp List.t V.clo) : S.tp list =
-  let rec go (env : V.env) =
+and quote_tp_tele (lvl : Lvl.t) (tele : S.tp List.t V.clo) : S.tp list =
+  let rec go (lvl : Lvl.t) (env : V.env) =
     function
     | [] ->
       []
     | tm :: tms ->
-      let tm = quote_tp env.tmlen (eval_tp env tm)
-      and tms = go (V.Env.extend_tm env (Lazy.from_val (V.var env.tmlen))) tms
+      let tm = quote_tp lvl (eval_tp env tm)
+      and tms = go (lvl + 1) (V.Env.extend_tm env (Lazy.from_val (V.var env.tmlen))) tms
       in tm :: tms
- in go tele.env tele.body
-
-  (* match tele.body with *)
-  (* | [] -> [] *)
-  (* | (tm :: tms) -> *)
-  (*   let tm = quote_tm lvl (eval_) *)
-
-(*   | Cons (v, tele_clo) -> *)
-(*     let tm = quote_tm lvl v *)
-(*     and tele = *)
-(*       quote_tm_tele (lvl + 1) @@ *)
-(*       eval_tm_tele (V.Env.extend_tm tele_clo.env (Lazy.from_val @@ V.var lvl)) tele_clo.body *)
-(*     in tm :: tele *)
-
-(* and quote_tp_tele (lvl : Lvl.t) (tele : (S.tp, V.tp) V.tele) : S.tp list = *)
-(*   match tele with *)
-(*   | Nil -> [] *)
-(*   | Cons (v, tele_clo) -> *)
-(*     let tp = quote_tp lvl v *)
-(*     and tele = *)
-(*       quote_tp_tele (lvl + 1) @@ *)
-(*       eval_tp_tele (V.Env.extend_tm tele_clo.env (Lazy.from_val @@ V.var lvl)) tele_clo.body *)
-(*     in tp :: tele *)
+ in go lvl tele.env tele.body
