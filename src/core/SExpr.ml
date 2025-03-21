@@ -14,9 +14,9 @@ let bool (b : Bool.t) : t = int (Bool.to_int b)
 
 let fn (s : String.t) (es : t List.t) = List (Atom s :: es)
 
-let rec dump (fmt : Format.formatter) (e : t) =
+let rec pp_print_sexpr (fmt : Format.formatter) (e : t) =
   match e with
   | List es ->
-    Format.fprintf fmt "@[<hov 2>(%a)@]" (Format.pp_print_list ~pp_sep:Format.pp_print_space dump) es
+    Format.fprintf fmt "@[<hov 2>(%a)@]" (Format.pp_print_list ~pp_sep:Format.pp_print_space pp_print_sexpr) es
   | Atom s ->
     Format.pp_print_string fmt s

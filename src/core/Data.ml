@@ -19,10 +19,19 @@ module rec Syntax : sig
 
   type tm =
     | Var of Idx.t
+    (** De-Bruijn indexed variables. *)
 
     | DimZero
+    (** The zero dimension. *)
 
     | DimSucc of tm
+    (** The successor dimension. *)
+
+    | Lam of tm
+    (** Lambda abstraction. *)
+
+    | App of tm * tm
+    (** Function application. *)
 
     | Tuple of tm List.t
     (** Introduction form for record types. *)
@@ -31,19 +40,36 @@ module rec Syntax : sig
     (** Elimination form for record types. *)
 
     | Pt
+    (** The point. *)
 
     | Compound of tm List.t
     (** Introduction form for shapes. *)
 
-    | MetaAbs of tm
-    (** Meta-abstraction of terms. *)
+    | AppZero of tm
+    (** Apply zero to a code. *)
 
-    | Inst of tm * tm
+    | Inst of meta_tm * tm
     (** Instantiate a meta-abstracted term. *)
 
-    | Digit of bool * tm
-
     | DimRec of { mot : tp; zero : tm; succ : tm; scrut : tm }
+    (** Eliminate a dimension into a virtual type. *)
+
+
+  (** Meta-abstracted terms. This is like the judgement form for terms,
+      but with more precise control over dependencies. *)
+  and meta_tm =
+    | MetaAbs of tm
+    (** Form a meta-abstracted term. *)
+
+    | AppOne of tm
+    (** Applying one to a either a shape or a point yields a meta-abstraction. *)
+
+    | MetaAppZero of meta_tm
+    (** Applying zero to a meta-abstraction yields another meta-abstraction. *)
+
+    | MetaAppOne of meta_tm
+    (** Applying one to a meta-abstraction yields another meta-abstraction. *)
+
 
   and tp =
     | TpVar of Idx.t
@@ -56,23 +82,31 @@ module rec Syntax : sig
     | Dim
     (** The virtual type of dimensions. *)
 
+    | Pi of tp * tp
+    (** Pi types. *)
+
     | Record of tp List.t
     (** Record types. *)
 
-    | TpMetaAbs of tp * tp
-    (** Meta-abstraction of types *)
+    | TpInst of meta_tp * tm
+    (** Instantiation of a meta-abstracted type. *)
 
     | ShapeUniv of tm
-    (** The virtual type of shapes. *)
+    (** The virtual type of shapes, indexed by a dimension. *)
 
     | ElShape of tm
     (** Decodes a shape into a into a type by mapping compound shapes to record types. *)
 
     | PointUniv of tm
-    (** The virtual type of points. *)
+    (** The virtual type of points, indexed by a dimension. *)
 
     | ElPoint of tm
-    (** Unclear what this does :) *)
+    (** Decodes points to types. Note that this does not compute on Pt. *)
+
+  (** The judgement form meta-abstracted types. *)
+  and meta_tp =
+    | TpMetaAbs of tp
+    (** Form a meta-abstracted type. *)
 
 end = Syntax
 
@@ -80,31 +114,78 @@ end = Syntax
 and Value : sig
   type tm =
     | Neu of neu
+    (** Neutrals. *)
+
     | DimZero
+    (** The zero dimension. *)
+
     | DimSucc of tm
+    (** The successor dimension. *)
+
+    | Lam of Syntax.tm clo
+
     | Tuple of tm Lazy.t List.t
-    | Pt
-    | Compound of (Syntax.tm, tm) tele
+    (** Introduction form for record types.
+        We opt to make the fields lazy to avoid redundant computation. *)
+
+    | Compound of Syntax.tm List.t clo
+    (** Introduction form for shapes. *)
+
+  (** Meta-abstracted values. *)
+  and meta_tm =
+    | MetaNeu of meta_neu
+
     | MetaAbs of Syntax.tm clo
+    (** Form a meta-abstracted term. *)
 
   and tp =
     | Dim
-    | Record of (Syntax.tp, tp) tele
-    | TpMetaAbs of tp * Syntax.tp clo
+    (** The virtual type of dimensions. *)
+
+    | Pi of tp * Syntax.tp clo
+    (** Pi types. *)
+
+    | Record of Syntax.tp List.t clo
+    (** Record types. *)
+
     | ShapeUniv of tm
+
     | ElShape of neu
+
     | PointUniv of tm
+
     | ElPoint of neu
 
-  and neu = { hd : hd; spine : frm List.t }
+  (** Meta-abstracted types. *)
+  and meta_tp =
+    | TpMetaAbs of Syntax.tp clo
+    (** Form a meta-abstracted type. *)
 
-  and hd = Lvl.t
+  and neu = { hd : hd; spine : frm List.t; zeros : int }
+
+  (** A neutral head is something that computation got stuck on. *)
+  and hd =
+    | Var of Lvl.t
+    (** De-Bruijn level variables. *)
+    | Pt
+    (** The point is a postulate, so it should be a neutral, not a value. *)
+    | Inst of meta_neu * tm Lazy.t
+    (** Meta-neutrals are the only way instantiation get blocked. *)
 
   and frm =
+    | App of tm Lazy.t
     | Proj of Idx.t
-    | Inst of tm Lazy.t
-    | Digit of bool
     | DimRec of { mot : tp; zero : tm; succ : tm }
+
+  and meta_neu = { meta_hd : meta_hd; meta_spine : meta_frm List.t }
+
+  (** Meta-abstracted terms are their own judgement, so they have their own neutrals. *)
+  and meta_hd =
+    | AppOne of neu
+
+  and meta_frm =
+    | MetaAppZero
+    | MetaAppOne
 
   and env =
     { tms : tm Lazy.t List.t;
@@ -114,10 +195,6 @@ and Value : sig
     }
 
   and 'a clo = { body : 'a; env : env }
-
-  and ('s, 'v) tele =
-    | Nil
-    | Cons of 'v * 's list clo
 
 end = Value
 

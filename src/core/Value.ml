@@ -6,17 +6,10 @@ include V
 module Lvl = Data.Lvl
 
 let var (lvl : Lvl.t) : V.tm =
-  Neu { hd = lvl; spine = [] }
+  Neu { hd = Var lvl; spine = []; zeros = 0 }
 
-module Tele =
-struct
-  type ('s, 'v) t = ('s, 'v) V.tele
-
-  let length (tele : ('s, 'v) tele) : int =
-    match tele with
-    | Nil -> 0
-    | Cons (_, tele_clo) -> 1 + List.length tele_clo.body
-end
+let pt : V.tm =
+  Neu { hd = Pt; spine = []; zeros = 0 }
 
 module Env =
 struct
@@ -55,46 +48,108 @@ struct
     { neu with spine = frame :: neu.spine }
 end
 
-let rec tm_sexpr (v : V.tm) : SExpr.t =
+module MetaNeu =
+struct
+  let push (neu : meta_neu) (frame : meta_frm) : meta_neu =
+    { neu with meta_spine = frame :: neu.meta_spine }
+end
+
+let rec debug_tm_sexpr (v : V.tm) : SExpr.t =
   match v with
   | Neu neu ->
-    SExpr.fn "neu" (hd_sexpr neu.hd :: List.map frm_sexpr (List.rev neu.spine))
+    SExpr.fn "neu" (debug_neu_sexpr neu)
   | DimZero ->
     SExpr.atom "dim-zero"
   | DimSucc v ->
-    SExpr.fn "dim-succ" [tm_sexpr v]
+    SExpr.fn "dim-succ" [debug_tm_sexpr v]
+  | Lam clo ->
+    SExpr.fn "lam" [debug_clo_sexpr S.debug_tm_sexpr clo]
   | Tuple vs ->
-    SExpr.fn "tuple" (List.map (fun v -> tm_sexpr (Lazy.force v)) vs)
+    SExpr.fn "tuple" (List.map (fun v -> debug_tm_sexpr (Lazy.force v)) vs)
+  | Compound clo ->
+    SExpr.fn "tuple" [debug_clo_sexpr (fun tms -> SExpr.list (List.map S.debug_tm_sexpr tms)) clo]
+
+and debug_meta_tm_sexpr (mv : V.meta_tm) : SExpr.t =
+  match mv with
+  | MetaNeu mneu ->
+    SExpr.fn "meta-neu" (debug_meta_neu_sexpr mneu)
+  | MetaAbs clo ->
+    SExpr.fn "meta-abs" [debug_clo_sexpr S.debug_tm_sexpr clo]
+
+and debug_tp_sexpr (tp : V.tp) : SExpr.t =
+  match tp with
+  | Dim ->
+    SExpr.atom "dim"
+  | Pi (base, clo) ->
+    SExpr.fn "pi" [debug_tp_sexpr base; debug_clo_sexpr S.debug_tp_sexpr clo]
+  | Record tele ->
+    SExpr.fn "record" [debug_clo_sexpr (fun tps -> SExpr.list (List.map S.debug_tp_sexpr tps)) tele]
+  | ShapeUniv tm ->
+    SExpr.fn "shape-univ" [debug_tm_sexpr tm]
+  | ElShape neu ->
+    SExpr.fn "el-shape" (debug_neu_sexpr neu)
+  | PointUniv tm ->
+    SExpr.fn "point-univ" [debug_tm_sexpr tm]
+  | ElPoint neu ->
+    SExpr.fn "el-point" (debug_neu_sexpr neu)
+
+and debug_meta_tp_sexpr (mtp : V.meta_tp) : SExpr.t =
+  match mtp with
+  | TpMetaAbs clo ->
+    SExpr.fn "tp-meta-abs" [debug_clo_sexpr S.debug_tp_sexpr clo]
+
+and debug_neu_sexpr (neu : V.neu) : SExpr.t List.t =
+  debug_hd_sexpr neu.hd :: List.rev_map debug_frm_sexpr neu.spine
+
+and debug_hd_sexpr (hd : V.hd) : SExpr.t =
+  match hd with
+  | Var lvl ->
+    SExpr.fn "var" [SExpr.int lvl]
   | Pt ->
     SExpr.atom "pt"
-  | Compound vs ->
-    SExpr.fn "compound" (tm_tele_sexpr vs)
-  | MetaAbs (clo) ->
-    SExpr.fn "meta-abs" [clo_sexpr S.tm_sexpr clo]
+  | Inst (mtm, tm) ->
+    SExpr.fn "inst" [SExpr.list (debug_meta_neu_sexpr mtm); debug_tm_sexpr (Lazy.force tm)]
 
-and tp_sexpr (tp : V.tp) : SExpr.t = SExpr.atom "todo"
-
-and hd_sexpr (hd : V.hd) : SExpr.t = SExpr.fn "var" [SExpr.int hd]
-
-and frm_sexpr (frm : V.frm) : SExpr.t =
+and debug_frm_sexpr (frm : V.frm) : SExpr.t =
   match frm with
-  | Proj i ->
-    SExpr.fn "proj" [SExpr.int i]
-  | Inst v ->
-    SExpr.fn "inst" [tm_sexpr (Lazy.force v)]
-  | Digit d ->
-    SExpr.fn "digit" [SExpr.bool d]
+  | App tm ->
+    SExpr.fn "app" [debug_tm_sexpr (Lazy.force tm)]
+  | Proj ix ->
+    SExpr.fn "proj" [SExpr.int ix]
   | DimRec {mot; zero; succ} ->
-    SExpr.fn "dim-rec" [tp_sexpr mot; tm_sexpr zero; tm_sexpr succ]
+    SExpr.fn "dim-rec" [debug_tp_sexpr mot; debug_tm_sexpr zero; debug_tm_sexpr succ]
 
-and tm_tele_sexpr (tele : (S.tm, V.tm) tele) : SExpr.t list =
-  match tele with
-  | Nil -> []
-  | Cons (v, tms) -> [tm_sexpr v; clo_sexpr (fun tms -> SExpr.list (List.map S.tm_sexpr tms)) tms]
 
-and clo_sexpr : 'a. ('a -> SExpr.t) -> 'a clo -> SExpr.t =
+and debug_meta_neu_sexpr (mneu : V.meta_neu) : SExpr.t List.t =
+  debug_meta_hd_sexpr mneu.meta_hd :: List.rev_map debug_meta_frm_sexpr mneu.meta_spine
+
+and debug_meta_hd_sexpr (mhd : V.meta_hd) : SExpr.t =
+  match mhd with
+  | AppOne neu ->
+    SExpr.fn "app-one" (debug_neu_sexpr neu)
+
+and debug_meta_frm_sexpr (mfrm : V.meta_frm) : SExpr.t =
+  match mfrm with
+  | MetaAppZero ->
+    SExpr.atom "meta-app-zero"
+  | MetaAppOne ->
+    SExpr.atom "meta-app-one"
+
+and debug_clo_sexpr : 'a. ('a -> SExpr.t) -> 'a clo -> SExpr.t =
   fun body_sexpr clo ->
-  SExpr.fn "clo" [env_sexpr clo.env; body_sexpr clo.body]
+  SExpr.fn "clo" [debug_env_sexpr clo.env; body_sexpr clo.body]
 
-and env_sexpr (env : Env.t) : SExpr.t =
-  SExpr.list (List.map (fun v -> tm_sexpr (Lazy.force v)) env.tms)
+and debug_env_sexpr (env : Env.t) : SExpr.t =
+  SExpr.list (List.rev_map (fun v -> debug_tm_sexpr (Lazy.force v)) env.tms)
+
+let dump_tm (fmt : Format.formatter) (tm : V.tm) : unit =
+  SExpr.pp_print_sexpr fmt (debug_tm_sexpr tm)
+
+let dump_meta_tm (fmt : Format.formatter) (mtm : V.meta_tm) : unit =
+  SExpr.pp_print_sexpr fmt (debug_meta_tm_sexpr mtm)
+
+let dump_tp (fmt : Format.formatter) (tp : V.tp) : unit =
+  SExpr.pp_print_sexpr fmt (debug_tp_sexpr tp)
+
+let dump_meta_tp (fmt : Format.formatter) (mtp : V.meta_tp) : unit =
+  SExpr.pp_print_sexpr fmt (debug_meta_tp_sexpr mtp)
