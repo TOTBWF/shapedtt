@@ -24,7 +24,7 @@ struct
         let upsert =
           function
           | Some conf -> Some (go (segs, conf))
-          | None -> Some (go (segs, Group { verbosity; children = StringMap.empty }))
+          | None -> Some (go (segs, Group { verbosity = None; children = StringMap.empty }))
         in Group { group with children = StringMap.update seg upsert group.children }
     in go (String.split_on_char '.' key, conf)
 
@@ -55,13 +55,13 @@ let debug_formatter prefix lvl =
         None
     | _ -> None
 
-let print ?(prefix = "") ?(level = 0) (k : Format.formatter -> unit) =
+let print ?(prefix = "") ?(level = 0) (k : unit -> Format.formatter -> unit) =
   match debug_formatter prefix level with
   | Some fmt ->
-    Format.kfprintf k fmt "%s:%d@." prefix level;
+    Format.kfprintf (k ()) fmt "%s:%d@." prefix level;
     Format.pp_print_newline fmt ()
   | None -> ()
 
 let trace ?(prefix = "") ?(level = 0) (k : 'a -> Format.formatter -> unit) (x : 'a) : 'a =
-  print ~prefix ~level (k x);
+  print ~prefix ~level (fun _ -> k x);
   x

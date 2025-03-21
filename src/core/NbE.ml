@@ -12,7 +12,9 @@ module Lvl = V.Lvl
 
 let rec eval_tm (env : V.env) (tm : S.tm) : V.tm =
   Debug.trace ~prefix:"eval.eval_tm" ~level:100
-    (fun v -> Format.dprintf "%a@.@[<hov>⊢ %a@ ⇓ %a@]" V.dump_env env S.dump_tm tm V.dump_tm v) @@
+    (fun v ->
+       Format.dprintf "%a@.@[<hov>⊢ %a@ ⇓ %a@]"
+         V.dump_env env S.dump_tm tm V.dump_tm v) @@
   match tm with
   | S.Var ix ->
     Lazy.force (V.Env.nth_tm env ix)
@@ -38,12 +40,12 @@ let rec eval_tm (env : V.env) (tm : S.tm) : V.tm =
     do_inst (eval_meta_tm env mtm) (eval_tm_lazy env arg)
   | S.DimRec {mot; zero; succ; scrut} ->
     do_dim_rec (eval_tp env mot) (eval_tm env zero) (eval_tm env succ) (eval_tm env scrut)
-  (* Debug.print ~prefix:"eval" ~level:100 "%a@.@[<hov>⊢ %a@ ⇓ %a@]@." V.dump_env env S.dump_tm tm V.dump_tm v; *)
-  (* v *)
 
 and eval_meta_tm (env : V.env) (mtm : S.meta_tm) : V.meta_tm =
   Debug.trace ~prefix:"eval.eval_meta_tm" ~level:100
-    (fun v -> Format.dprintf "%a@.@[<hov>⊢ %a@ ⇓ %a@]" V.dump_env env S.dump_meta_tm mtm V.dump_meta_tm v) @@
+    (fun v ->
+       Format.dprintf "%a@.@[<hov>⊢ %a@ ⇓ %a@]"
+         V.dump_env env S.dump_meta_tm mtm V.dump_meta_tm v) @@
   match mtm with
   | S.MetaAbs body ->
     V.MetaAbs { env; body }
@@ -56,7 +58,9 @@ and eval_meta_tm (env : V.env) (mtm : S.meta_tm) : V.meta_tm =
 
 and eval_tp (env : V.env) (tp : S.tp) : V.tp =
   Debug.trace ~prefix:"eval.eval_tp" ~level:100
-    (fun v -> Format.dprintf "%a@.@[<hov>⊢ %a@ ⇓ %a@]" V.dump_env env S.dump_tp tp V.dump_tp v) @@
+    (fun v ->
+       Format.dprintf "%a@.@[<hov>⊢ %a@ ⇓ %a@]"
+         V.dump_env env S.dump_tp tp V.dump_tp v) @@
   match tp with
   | S.TpVar ix ->
     Lazy.force (V.Env.nth_tp env ix)
@@ -79,7 +83,9 @@ and eval_tp (env : V.env) (tp : S.tp) : V.tp =
 
 and eval_meta_tp (env : V.env) (mtp : S.meta_tp) : V.meta_tp =
   Debug.trace ~prefix:"eval.eval_meta_tp" ~level:100
-    (fun v -> Format.dprintf "%a@.@[<hov>⊢ %a@ ⇓ %a@]" V.dump_env env S.dump_meta_tp mtp V.dump_meta_tp v) @@
+    (fun v ->
+       Format.dprintf "%a@.@[<hov>⊢ %a@ ⇓ %a@]"
+         V.dump_env env S.dump_meta_tp mtp V.dump_meta_tp v) @@
   match mtp with
   | S.TpMetaAbs body ->
     V.TpMetaAbs {env; body}
@@ -89,6 +95,10 @@ and eval_tm_lazy (env : V.env) (tm : S.tm) : V.tm Lazy.t =
   Lazy.from_fun @@ fun () -> eval_tm env tm
 
 and do_app (v : V.tm) (arg : V.tm Lazy.t) : V.tm =
+  Debug.print ~prefix:"eval.do_app" ~level:100
+    (fun () ->
+       Format.dprintf "Applying@.  %a@.to@.  %a"
+         V.dump_tm v V.dump_tm (Lazy.force arg));
   match v with
   | V.Lam clo ->
     eval_tm (V.Env.extend_tm clo.env arg) clo.body
@@ -102,6 +112,10 @@ and do_apps (v : V.tm) (args : V.tm Lazy.t List.t) : V.tm =
 
 (** Project the nth field out of a tuple. *)
 and do_proj (v : V.tm) (ix : Idx.t) : V.tm =
+  Debug.print ~prefix:"eval.do_proj" ~level:100
+    (fun () ->
+       Format.dprintf "Projecting %d from@.  %a"
+         ix V.dump_tm v);
   match v with
   | V.Tuple vs ->
     Lazy.force (List.nth vs ix)
@@ -111,6 +125,10 @@ and do_proj (v : V.tm) (ix : Idx.t) : V.tm =
     failwith @@ Format.asprintf "bad do_proj: %a" V.dump_tm v
 
 and do_app_zero (v : V.tm) : V.tm =
+  Debug.print ~prefix:"eval.do_app_zero" ~level:100
+    (fun () ->
+       Format.dprintf "Applying zero to@.  %a"
+         V.dump_tm v);
   match v with
   | V.Compound tele_clo ->
     V.Compound { tele_clo with body = List.map (fun tm -> S.AppZero tm) tele_clo.body }
@@ -121,6 +139,10 @@ and do_app_zero (v : V.tm) : V.tm =
     failwith @@ Format.asprintf "bad do_app_zero: %a" V.dump_tm v
 
 and do_app_one (v : V.tm) : V.meta_tm =
+  Debug.print ~prefix:"eval.do_app_one" ~level:100
+    (fun () ->
+       Format.dprintf "Applying one to term@.  %a"
+         V.dump_tm v);
   match v with
   | V.Compound tele ->
     splice_meta_tm @@
@@ -135,6 +157,10 @@ and do_app_one (v : V.tm) : V.meta_tm =
     failwith @@ Format.asprintf "bad do_app_one: %a" V.dump_tm v
 
 and do_meta_app_zero (v : V.meta_tm) : V.meta_tm =
+  Debug.print ~prefix:"eval.do_meta_app_zero" ~level:100
+    (fun () ->
+       Format.dprintf "Applying zero to meta-term@.  %a"
+         V.dump_meta_tm v);
   match v with
   | V.MetaNeu neu ->
     V.MetaNeu (V.MetaNeu.push neu V.MetaAppZero)
@@ -146,6 +172,10 @@ and do_meta_app_zero (v : V.meta_tm) : V.meta_tm =
     TB.app_zero (tm x)
 
 and do_meta_app_one (v : V.meta_tm) : V.meta_tm =
+  Debug.print ~prefix:"eval.do_meta_app_one" ~level:100
+    (fun () ->
+       Format.dprintf "Applying one to meta-term@.  %a"
+         V.dump_meta_tm v);
   match v with
   | V.MetaNeu neu ->
     V.MetaNeu (V.MetaNeu.push neu V.MetaAppOne)
@@ -157,6 +187,10 @@ and do_meta_app_one (v : V.meta_tm) : V.meta_tm =
     TB.inst (TB.app_one (tm (TB.proj omega 0))) (TB.tuple [TB.proj omega 2; TB.proj omega 1])
 
 and do_inst (mv : V.meta_tm) (arg : V.tm Lazy.t) : V.tm =
+  Debug.print ~prefix:"eval.do_inst" ~level:100
+    (fun () ->
+       Format.dprintf "Instantiating term@.  %a@.with@.  %a"
+         V.dump_meta_tm mv V.dump_tm (Lazy.force arg));
   match mv with
   | V.MetaAbs clo ->
     eval_tm (V.Env.extend_tm clo.env arg) clo.body
@@ -164,6 +198,10 @@ and do_inst (mv : V.meta_tm) (arg : V.tm Lazy.t) : V.tm =
     V.Neu { hd = V.Inst (neu, arg); spine = []; zeros = 0 }
 
 and do_dim_rec (mot : V.tp) (zero : V.tm) (succ : V.tm) (scrut : V.tm) : V.tm =
+  Debug.print ~prefix:"eval.do_dim_rec" ~level:100
+    (fun () ->
+       Format.dprintf "Recursing on dimension@.  %a@.with motive@.  %a@.and methods@.%a@.%a"
+         V.dump_tm scrut V.dump_tp mot V.dump_tm zero V.dump_tm succ);
   match scrut with
   | V.DimZero ->
     zero
